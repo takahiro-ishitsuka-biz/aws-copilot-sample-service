@@ -1,0 +1,59 @@
+Parameters:
+  App:
+    Type: String
+    Description: Your application's name.
+  Env:
+    Type: String
+    Description: The environment name your service, job, or workflow is being deployed to.
+  Name:
+    Type: String
+    Description: The name of the service, job, or workflow being deployed.
+  ServiceSecurityGroupId:
+    Type: String
+    Description: The security group associated with the VPC connector.    
+
+Resources:
+  ElastiCacheSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description: !Sub Group of Copilot private subnets for ElastiCache.
+      SubnetIds:
+        !Split [',', { 'Fn::ImportValue': !Sub '${App}-${Env}-PrivateSubnets' }]
+  ElastiCacheSecurityGroup:
+    Metadata:
+      'aws:copilot:description': 'A security group for ElastiCache'
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: The Security Group for the ElastiCache
+      SecurityGroupIngress:
+        - ToPort: 6379
+          FromPort: 6379
+          IpProtocol: tcp
+          Description: !Sub 'From the ElastiCache Security Group of the workload ${Name}.'
+          SourceSecurityGroupId: !Ref ServiceSecurityGroupId
+      VpcId:
+        Fn::ImportValue:
+          !Sub '${App}-${Env}-VpcId'
+      Tags:
+        - Key: Name
+          Value: !Sub 'copilot-${App}-${Env}-${Name}-ElastiCache'        
+  ElastiCacheCluster:
+    Type: AWS::ElastiCache::CacheCluster
+    Properties:
+      CacheNodeType: cache.t3.micro
+      Engine: redis
+      EngineVersion: 7.0
+      AZMode: single-az
+      NumCacheNodes: 1
+      CacheSubnetGroupName: !Ref ElastiCacheSubnetGroup
+      VpcSecurityGroupIds:
+        - !Ref ElastiCacheSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub 'copilot-${App}-${Env}-${Name}-ElastiCache'
+
+Outputs:
+  redisUrl: # REDIS_URL として環境変数に展開される
+    Value: !Sub redis://${ElastiCacheCluster.RedisEndpoint.Address}:${ElastiCacheCluster.RedisEndpoint.Port}
+    Export:
+      Name: !Sub ${App}-${Env}-redisUrl
