@@ -28,9 +28,9 @@ cpu: 1024
 memory: 2048
 
 # Connect your App Runner service to your environment's VPC.
-# network:
-#   vpc:
-#     placement: private
+network:
+  vpc:
+    placement: private
 
 
 # Enable tracing for the service.
